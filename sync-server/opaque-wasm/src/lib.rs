@@ -97,3 +97,15 @@ pub fn finish_login(server_login_state: &str, finish_login_request: &str) -> Res
         .map_err(|error| JsError::new(&format!("finish: {error:?}")))?;
     Ok(serde_json::json!({ "sessionKey": BASE64.encode(finish.session_key) }).to_string())
 }
+
+/// Whether `registration_record` is a well-formed OPAQUE registration record.
+///
+/// The server used to store whatever the client sent, so a garbage record created an account nobody
+/// could ever sign in to or delete — blocking that email for good (the red-team report, R4-N3).
+#[wasm_bindgen]
+pub fn is_valid_registration_record(registration_record: &str) -> bool {
+    decode(registration_record)
+        .ok()
+        .and_then(|bytes| ServerRegistration::<Suite>::deserialize(&bytes).ok())
+        .is_some()
+}

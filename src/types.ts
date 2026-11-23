@@ -6,7 +6,7 @@ export type Uuid = string;
 export type SessionState = "closed" | "locked" | "unlocked";
 export type Theme = "system" | "light" | "dark";
 /** How the browser extension may be handed a password. */
-export type AutofillReveal = "always" | "oncePerSite" | "never";
+export type AutofillReveal = "always" | "oncePerSite";
 export type LockReason = "user" | "inactivity" | "tray";
 export type FileKind = "vault" | "keyFile" | "csv" | "kdbx" | "image" | "recovery";
 

@@ -59,7 +59,6 @@ export async function openSettings(): Promise<void> {
     [
       { value: "always", label: "Ask every time" },
       { value: "oncePerSite", label: "Ask once per entry" },
-      { value: "never", label: "Never ask" },
     ],
     current.autofillReveal,
     (value) => void save((preferences) => (preferences.autofillReveal = value)),
@@ -257,7 +256,7 @@ export async function openSettings(): Promise<void> {
               ),
             ),
             field("When the extension asks for a password", revealMode, {
-              hint: "“Ask every time” is the safest: a program on this computer cannot answer the prompt. “Never ask” lets any program that can read the pairing code take a password without asking you — use it only if you understand that.",
+              hint: "“Ask every time” is the safest: a program on this computer cannot answer the prompt. “Ask once per entry” asks the first time for each login and then remembers it for this session.",
             }),
           ),
       h(

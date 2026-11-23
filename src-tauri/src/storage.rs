@@ -482,6 +482,15 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         return Err(error.into());
     }
 
+    // The file holds the vault's key material, or (for `settings.json`) the pairing code and the
+    // sync bearer token. Make it readable only by its owner before it is put in place, so another
+    // user on the machine cannot read it (the red-team report, S-08).
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600));
+    }
+
     // On Windows the destination can be briefly locked by an antivirus or another
     // Lados window reading it, so the final rename is retried for a moment.
     let mut attempt = 0;

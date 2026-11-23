@@ -103,7 +103,10 @@ async function revealEntry(id) {
   }
 }
 
-api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+api.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Only this extension's own content scripts and popup may drive the bridge; ignore anything from
+  // elsewhere (the red-team report, S-23).
+  if (sender && sender.id && sender.id !== api.runtime.id) return false;
   if (!message || typeof message.type !== "string") return false;
 
   switch (message.type) {

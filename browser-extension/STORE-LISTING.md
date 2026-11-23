@@ -4,7 +4,7 @@ Copy‑paste fields for the **Chrome Web Store** and **Microsoft Edge Add‑ons*
 Firefox (AMO) is already published; its fields are the same.
 
 - Package: `browser-extension/build/lados-chrome.zip` (rebuild with `python3 scripts/build-extension.py`)
-- Version: `0.4.3` (from `manifest.chrome.json`)
+- Version: `0.4.4` (from `manifest.chrome.json`)
 - Icon: `browser-extension/icons/icon-128.png`
 
 ---
@@ -48,6 +48,24 @@ Privacy policy: https://ladospwm.vercel.app/privacy
 
 (Chrome/Edge take the same wording: Chrome’s “What’s new in this version” gets the release note,
 and its privacy questionnaire is already covered above.)
+
+---
+
+## Firefox (AMO) 0.4.4 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+Hardening: the in-page widget is closed to the page, and the background script only accepts
+messages from the extension itself.
+```
+
+**Notes to reviewer:**
+
+```
+Two hardening changes. content.js now attaches its widget with a *closed* shadow root, so a page
+cannot reach into it to read or move it. background.js ignores runtime messages whose sender is not
+this extension. No manifest, permission or network change.
 
 ---
 

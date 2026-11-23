@@ -242,7 +242,8 @@
     host = document.createElement("div");
     host.id = "lados-autofill-root";
     host.style.cssText = "all:initial;position:fixed;z-index:2147483647;top:0;left:0;";
-    shadow = host.attachShadow({ mode: "open" });
+    // Closed: the page cannot reach into the widget to read or move it (the red-team report, S-20/S-22).
+    shadow = host.attachShadow({ mode: "closed" });
 
     const style = document.createElement("style");
     style.textContent = CSS;

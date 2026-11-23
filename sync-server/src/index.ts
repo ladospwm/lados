@@ -33,8 +33,9 @@ const enc = new TextEncoder();
 const ACCOUNT_QUOTA_BYTES = 100 * 1024 * 1024;
 
 /// How recently the caller must have signed in for an irreversible account deletion. The app
-/// re-authenticates with a fresh OPAQUE login right before deleting (the red-team report, M7).
-const REAUTH_WINDOW_MS = 5 * 60 * 1000;
+/// re-authenticates with a fresh OPAQUE login right before deleting, so this window only has to
+/// cover that one round trip (the red-team report, M7/S-01).
+const REAUTH_WINDOW_MS = 2 * 60 * 1000;
 
 function bearerToken(request: Request): string | null {
   const match = (request.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
@@ -44,7 +45,16 @@ function bearerToken(request: Request): string | null {
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      // The API is never framed or content-sniffed, its answers must not be cached, and it is only
+      // ever reached over HTTPS (the red-team report, S-12).
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "no-referrer",
+      "cache-control": "no-store",
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
+    },
   });
 }
 
@@ -116,6 +126,13 @@ async function readJson<T>(request: Request): Promise<T | null> {
   }
 }
 
+/// A string field, or `null` when it is missing or not a string. Guards every handler against a
+/// wrong JSON type (a number where a string is expected used to crash and leak a 500) — the
+/// red-team report, S-04.
+function str(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
 // ----- Handlers -----
 
 function clientIp(request: Request): string {
@@ -154,9 +171,10 @@ const LOGIN_TTL_MS = 2 * 60 * 1000;
 
 /// Registration, step 1: the server's OPRF response to the client's request.
 async function opaqueRegisterStart(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ email?: string; registrationRequest?: string }>(request);
-  const email = body?.email?.trim().toLowerCase();
-  if (!email || !email.includes("@") || !body?.registrationRequest) {
+  const body = await readJson<{ email?: unknown; registrationRequest?: unknown }>(request);
+  const email = str(body?.email)?.trim().toLowerCase();
+  const registrationRequest = str(body?.registrationRequest);
+  if (!email || !email.includes("@") || !registrationRequest) {
     return json({ error: "invalid_request" }, 400);
   }
   if (!(await allow(env, `reg:ip:${clientIp(request)}`, 30, 900))) return json({ error: "rate_limited" }, 429);
@@ -165,7 +183,7 @@ async function opaqueRegisterStart(env: Env, request: Request): Promise<Response
   if (existing) return json({ error: "email_taken" }, 409);
 
   try {
-    const registrationResponse = create_registration_response(env.OPAQUE_SERVER_SETUP, email, body.registrationRequest);
+    const registrationResponse = create_registration_response(env.OPAQUE_SERVER_SETUP, email, registrationRequest);
     return json({ registrationResponse });
   } catch {
     // A malformed handshake is bad input, not a server fault.
@@ -175,11 +193,13 @@ async function opaqueRegisterStart(env: Env, request: Request): Promise<Response
 
 /// Registration, step 2: store the registration record and start a session.
 async function opaqueRegisterFinish(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ email?: string; registrationRecord?: string }>(request);
-  const email = body?.email?.trim().toLowerCase();
-  if (!email || !email.includes("@") || !body?.registrationRecord) {
+  const body = await readJson<{ email?: unknown; registrationRecord?: unknown }>(request);
+  const email = str(body?.email)?.trim().toLowerCase();
+  const registrationRecord = str(body?.registrationRecord);
+  if (!email || !email.includes("@") || !registrationRecord) {
     return json({ error: "invalid_request" }, 400);
   }
+  if (!(await allow(env, `regfinish:ip:${clientIp(request)}`, 30, 900))) return json({ error: "rate_limited" }, 429);
   const existing = await env.DB.prepare("SELECT id FROM accounts WHERE email = ?").bind(email).first();
   if (existing) return json({ error: "email_taken" }, 409);
 
@@ -192,7 +212,7 @@ async function opaqueRegisterFinish(env: Env, request: Request): Promise<Respons
   await env.DB.prepare(
     "INSERT INTO accounts (id, email, salt, verifier, scheme, opaque_record, plan, plan_valid_until, trial_used_at, created_at) VALUES (?, ?, '', '', 'opaque', ?, ?, ?, ?, ?)",
   )
-    .bind(id, email, body.registrationRecord, start.plan, start.validUntil, trialStartedAt, Date.now())
+    .bind(id, email, registrationRecord, start.plan, start.validUntil, trialStartedAt, Date.now())
     .run();
   const token = await startSession(env, id);
   return json({ token, plan: start.plan });
@@ -200,9 +220,10 @@ async function opaqueRegisterFinish(env: Env, request: Request): Promise<Respons
 
 /// Login, step 1: the server response plus a short-lived id holding its handshake state.
 async function opaqueLoginStart(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ email?: string; startLoginRequest?: string }>(request);
-  const email = body?.email?.trim().toLowerCase();
-  if (!email || !body?.startLoginRequest) return json({ error: "invalid_request" }, 400);
+  const body = await readJson<{ email?: unknown; startLoginRequest?: unknown }>(request);
+  const email = str(body?.email)?.trim().toLowerCase();
+  const startLoginRequest = str(body?.startLoginRequest);
+  if (!email || !startLoginRequest) return json({ error: "invalid_request" }, 400);
   if (!(await allow(env, `login:ip:${clientIp(request)}`, 100, 900))) return json({ error: "rate_limited" }, 429);
   if (!(await allow(env, `login:email:${email}`, 20, 900))) return json({ error: "rate_limited" }, 429);
 
@@ -215,7 +236,7 @@ async function opaqueLoginStart(env: Env, request: Request): Promise<Response> {
   let result: { serverLoginState: string; loginResponse: string };
   try {
     result = JSON.parse(
-      start_login(env.OPAQUE_SERVER_SETUP, account?.opaque_record ?? null, body.startLoginRequest, email, seed),
+      start_login(env.OPAQUE_SERVER_SETUP, account?.opaque_record ?? null, startLoginRequest, email, seed),
     ) as { serverLoginState: string; loginResponse: string };
   } catch {
     return json({ error: "invalid_request" }, 400);
@@ -233,17 +254,19 @@ async function opaqueLoginStart(env: Env, request: Request): Promise<Response> {
 
 /// Login, step 2: verify the handshake and, on success, start a session.
 async function opaqueLoginFinish(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ loginId?: string; finishLoginRequest?: string }>(request);
-  if (!body?.loginId || !body?.finishLoginRequest) return json({ error: "invalid_request" }, 400);
+  const body = await readJson<{ loginId?: unknown; finishLoginRequest?: unknown }>(request);
+  const loginId = str(body?.loginId);
+  const finishLoginRequest = str(body?.finishLoginRequest);
+  if (!loginId || !finishLoginRequest) return json({ error: "invalid_request" }, 400);
 
   const row = await env.DB.prepare("SELECT account_id, server_state, expires_at FROM logins WHERE id = ?")
-    .bind(body.loginId)
+    .bind(loginId)
     .first<{ account_id: string | null; server_state: string; expires_at: number }>();
   if (!row || row.expires_at <= Date.now()) return json({ error: "invalid_credentials" }, 401);
-  await env.DB.prepare("DELETE FROM logins WHERE id = ?").bind(body.loginId).run();
+  await env.DB.prepare("DELETE FROM logins WHERE id = ?").bind(loginId).run();
 
   try {
-    finish_login(row.server_state, body.finishLoginRequest);
+    finish_login(row.server_state, finishLoginRequest);
   } catch {
     return json({ error: "invalid_credentials" }, 401);
   }
@@ -258,10 +281,11 @@ async function opaqueLoginFinish(env: Env, request: Request): Promise<Response> 
 
 /// Conversion: attach an OPAQUE record to an already-authenticated (legacy) account.
 async function opaqueUpgradeStart(env: Env, account: AccountRow, request: Request): Promise<Response> {
-  const body = await readJson<{ registrationRequest?: string }>(request);
-  if (!body?.registrationRequest) return json({ error: "invalid_request" }, 400);
+  const body = await readJson<{ registrationRequest?: unknown }>(request);
+  const registrationRequest = str(body?.registrationRequest);
+  if (!registrationRequest) return json({ error: "invalid_request" }, 400);
   try {
-    const registrationResponse = create_registration_response(env.OPAQUE_SERVER_SETUP, account.email, body.registrationRequest);
+    const registrationResponse = create_registration_response(env.OPAQUE_SERVER_SETUP, account.email, registrationRequest);
     return json({ registrationResponse });
   } catch {
     return json({ error: "invalid_request" }, 400);
@@ -269,8 +293,9 @@ async function opaqueUpgradeStart(env: Env, account: AccountRow, request: Reques
 }
 
 async function opaqueUpgradeFinish(env: Env, account: AccountRow, request: Request): Promise<Response> {
-  const body = await readJson<{ registrationRecord?: string }>(request);
-  if (!body?.registrationRecord) return json({ error: "invalid_request" }, 400);
+  const body = await readJson<{ registrationRecord?: unknown }>(request);
+  const registrationRecord = str(body?.registrationRecord);
+  if (!registrationRecord) return json({ error: "invalid_request" }, 400);
   // A legacy account being converted to OPAQUE has not really changed its password; an account
   // that is already OPAQUE and registers again has. Only the latter gets a new timestamp.
   const before = await env.DB.prepare("SELECT scheme FROM accounts WHERE id = ?")
@@ -280,8 +305,18 @@ async function opaqueUpgradeFinish(env: Env, account: AccountRow, request: Reque
   await env.DB.prepare(
     "UPDATE accounts SET opaque_record = ?, scheme = 'opaque', password_changed_at = COALESCE(?, password_changed_at) WHERE id = ?",
   )
-    .bind(body.registrationRecord, changedAt, account.id)
+    .bind(registrationRecord, changedAt, account.id)
     .run();
+  if (changedAt) {
+    // The password changed: every session minted with the old one is now stale. Sign the other
+    // devices out, so a stolen token does not survive the user's reaction (the red-team report,
+    // S-06). This device keeps its session.
+    const token = bearerToken(request);
+    const currentHash = token ? await sha256Hex(token) : "";
+    await env.DB.prepare("DELETE FROM sessions WHERE account_id = ? AND token_hash != ?")
+      .bind(account.id, currentHash)
+      .run();
+  }
   return json({ ok: true, passwordChangedAt: changedAt ?? account.password_changed_at ?? null });
 }
 
@@ -620,7 +655,12 @@ async function putVault(env: Env, account: AccountRow, id: string, request: Requ
   if (!(await allow(env, `put:${account.id}`, 240, 900))) return json({ error: "rate_limited" }, 429);
 
   const ifMatch = request.headers.get("if-match");
-  const base = ifMatch === null ? vault.version : Number(ifMatch);
+  if (ifMatch === null) {
+    // Without `If-Match` a PUT overwrites whatever is there, blind. Require it so a client always
+    // states which version it is replacing (the red-team report, S-17). The app always sends it.
+    return json({ error: "if_match_required", version: vault.version }, 428);
+  }
+  const base = Number(ifMatch);
   if (base !== vault.version) return json({ error: "conflict", version: vault.version }, 409);
 
   const bytes = new Uint8Array(await request.arrayBuffer());
@@ -742,13 +782,13 @@ async function adminListComp(env: Env): Promise<Response> {
 /// Grants free access. An existing account is upgraded immediately; otherwise the grant is stored
 /// and picked up when the person registers.
 async function adminGrantComp(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ email?: string; note?: string }>(request);
-  const email = body?.email?.trim().toLowerCase();
+  const body = await readJson<{ email?: unknown; note?: unknown }>(request);
+  const email = str(body?.email)?.trim().toLowerCase();
   if (!email || !email.includes("@")) return json({ error: "invalid_request" }, 400);
   await env.DB.prepare(
     "INSERT INTO comp_grants (email, note, created_at) VALUES (?, ?, ?) ON CONFLICT(email) DO UPDATE SET note = excluded.note",
   )
-    .bind(email, body?.note ?? null, Date.now())
+    .bind(email, str(body?.note), Date.now())
     .run();
   const result = await env.DB.prepare("UPDATE accounts SET plan = 'comp', plan_valid_until = NULL WHERE email = ?")
     .bind(email)
@@ -759,8 +799,8 @@ async function adminGrantComp(env: Env, request: Request): Promise<Response> {
 /// Revokes free access: the grant is removed and an existing comp account becomes read-only (it
 /// can subscribe if it wants access back).
 async function adminRevokeComp(env: Env, request: Request): Promise<Response> {
-  const body = await readJson<{ email?: string }>(request);
-  const email = body?.email?.trim().toLowerCase();
+  const body = await readJson<{ email?: unknown }>(request);
+  const email = str(body?.email)?.trim().toLowerCase();
   if (!email || !email.includes("@")) return json({ error: "invalid_request" }, 400);
   await env.DB.prepare("DELETE FROM comp_grants WHERE email = ?").bind(email).run();
   const result = await env.DB.prepare(
@@ -784,7 +824,10 @@ export default {
       if (path === "/auth/login/start" && method === "POST") return await opaqueLoginStart(env, request);
       if (path === "/auth/login/finish" && method === "POST") return await opaqueLoginFinish(env, request);
       if (path === "/health") return json({ ok: true });
-      if (path === "/billing/webhook" && method === "POST") return await paddleWebhook(env, request);
+      if (path === "/billing/webhook" && method === "POST") {
+        if (!(await allow(env, `webhook:ip:${clientIp(request)}`, 240, 60))) return json({ error: "rate_limited" }, 429);
+        return await paddleWebhook(env, request);
+      }
 
       // Admin: complimentary access. Disabled (404) until the ADMIN_TOKEN secret is set.
       if (path === "/admin/comp") {
@@ -801,10 +844,14 @@ export default {
       if (path === "/auth/upgrade/start" && method === "POST") return await opaqueUpgradeStart(env, account, request);
       if (path === "/auth/upgrade/finish" && method === "POST") return await opaqueUpgradeFinish(env, account, request);
 
-      if (path === "/account" && method === "DELETE") return await deleteAccount(env, account);
+      if (path === "/account" && method === "DELETE") {
+        if (!(await allow(env, `delaccount:${account.id}`, 10, 3600))) return json({ error: "rate_limited" }, 429);
+        return await deleteAccount(env, account);
+      }
 
       // "Sign out everywhere": revoke every session except the one making this request.
       if (path === "/sessions" && method === "DELETE") {
+        if (!(await allow(env, `delsessions:${account.id}`, 30, 3600))) return json({ error: "rate_limited" }, 429);
         const token = bearerToken(request);
         const currentHash = token ? await sha256Hex(token) : "";
         await env.DB.prepare("DELETE FROM sessions WHERE account_id = ? AND token_hash != ?")
@@ -815,14 +862,29 @@ export default {
 
       // Billing: the client may start a checkout or cancel, but entitlement itself is only ever
       // changed by the webhook. These stay available when the plan has lapsed, so a user can renew.
-      if (path === "/billing/checkout" && method === "POST") return await createCheckout(env, account);
-      if (path === "/billing/cancel" && method === "POST") return await cancelSubscription(env, account);
-      if (path === "/billing/resume" && method === "POST") return await resumeSubscription(env, account);
+      if (path === "/billing/checkout" && method === "POST") {
+        if (!(await allow(env, `billing:${account.id}`, 30, 3600))) return json({ error: "rate_limited" }, 429);
+        return await createCheckout(env, account);
+      }
+      if (path === "/billing/cancel" && method === "POST") {
+        if (!(await allow(env, `billing:${account.id}`, 30, 3600))) return json({ error: "rate_limited" }, 429);
+        return await cancelSubscription(env, account);
+      }
+      if (path === "/billing/resume" && method === "POST") {
+        if (!(await allow(env, `billing:${account.id}`, 30, 3600))) return json({ error: "rate_limited" }, 429);
+        return await resumeSubscription(env, account);
+      }
 
       // `/me` and every read stay available even when the plan lapsed, so the app can show the
       // status and the user can always download — and delete — their own cloud data.
-      if (path === "/me" && method === "GET") return await me(env, account);
-      if (path === "/vaults" && method === "GET") return await listVaults(env, account);
+      if (path === "/me" && method === "GET") {
+        if (!(await allow(env, `me:${account.id}`, 240, 60))) return json({ error: "rate_limited" }, 429);
+        return await me(env, account);
+      }
+      if (path === "/vaults" && method === "GET") {
+        if (!(await allow(env, `listvaults:${account.id}`, 240, 60))) return json({ error: "rate_limited" }, 429);
+        return await listVaults(env, account);
+      }
 
       const match = path.match(/^\/vaults\/([^/]+)$/);
       if (match) {
@@ -840,7 +902,10 @@ export default {
 
       return json({ error: "not_found" }, 404);
     } catch (error) {
-      return json({ error: "server_error", message: String(error) }, 500);
+      // Never echo the exception: it can carry SQL, stack or internal detail (the red-team report,
+      // S-04). Log it for the operator; answer with a bare code.
+      console.error("unhandled", error);
+      return json({ error: "server_error" }, 500);
     }
   },
 };

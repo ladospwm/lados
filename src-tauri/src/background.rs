@@ -61,15 +61,22 @@ fn sync(
     };
 
     match result {
-        Ok(SyncOutcome::Unchanged) => {}
+        Ok(SyncOutcome::Unchanged) => {
+            *last_error = None;
+            *last_missing = None;
+        }
         Ok(SyncOutcome::Merged { report, local_changed }) => {
             if local_changed {
                 let _ = app.emit("vault-changed", report);
             }
+            *last_error = None;
+            *last_missing = None;
         }
         Ok(SyncOutcome::Diverged(copy)) => {
             commands::remember_copy(state, &previous_path, &copy);
             let _ = app.emit("vault-diverged", path_text(&copy));
+            *last_error = None;
+            *last_missing = None;
         }
         // Reported once per file: the poll runs every two seconds and must not nag. This only means
         // the file is *gone*; no save has happened. The interface asks what to do (the report, M8).
@@ -78,6 +85,9 @@ fn sync(
                 let _ = app.emit("vault-file-missing", path_text(&previous_path));
                 *last_missing = Some(previous_path);
             }
+            // Leave `last_missing` set: the file is still gone, so the next poll must not re-emit and
+            // stack a second dialog (the red-team report, S-25). It is cleared when the file returns.
+            *last_error = None;
         }
         Err(error) => {
             let message = error.to_string();
@@ -85,9 +95,6 @@ fn sync(
                 let _ = app.emit("vault-sync-error", &message);
                 *last_error = Some(message);
             }
-            return;
         }
     }
-    *last_error = None;
-    *last_missing = None;
 }

@@ -32,9 +32,12 @@ pub enum AutofillReveal {
     #[default]
     Always,
     /// Ask once per entry, then allow that entry for the rest of the session.
+    ///
+    /// `never` — an older setting that handed the password over with no prompt at all — now maps
+    /// here: any process on the machine can read the pairing code, so the click in the app is the
+    /// only thing that protects a password. No setting may remove it (the red-team report, S-03).
+    #[serde(alias = "never")]
     OncePerSite,
-    /// Hand it over without asking. What earlier versions did.
-    Never,
 }
 
 /// What the user can change in the settings dialog.

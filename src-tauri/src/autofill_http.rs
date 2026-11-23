@@ -226,9 +226,12 @@ fn reveal_for(app: &AppHandle, id: &str) -> Result<String, u16> {
 
     let entry_id = id.to_string();
     let mode = state.settings().preferences.autofill_reveal;
+    // The only case that skips the prompt is an entry the user already allowed this session under
+    // "once per entry". There is no longer a setting that turns the prompt off entirely: any process
+    // on the machine can read the pairing code, so the click is the protection (the report, S-03).
     let already_allowed = mode == AutofillReveal::OncePerSite && state.reveal_entry_allowed(&vault_id, &entry_id);
 
-    if mode != AutofillReveal::Never && !already_allowed {
+    if !already_allowed {
         let (request_id, answer) = state.register_reveal();
         let _ = app.emit(
             "autofill-reveal",

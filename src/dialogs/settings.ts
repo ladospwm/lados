@@ -257,7 +257,7 @@ export async function openSettings(): Promise<void> {
               ),
             ),
             field("When the extension asks for a password", revealMode, {
-              hint: "“Ask every time” is the safest: a program on this computer cannot answer the prompt.",
+              hint: "“Ask every time” is the safest: a program on this computer cannot answer the prompt. “Never ask” lets any program that can read the pairing code take a password without asking you — use it only if you understand that.",
             }),
           ),
       h(

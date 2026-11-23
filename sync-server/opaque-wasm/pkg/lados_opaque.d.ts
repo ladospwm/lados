@@ -12,6 +12,14 @@ export function create_registration_response(server_setup: string, user_identifi
 export function finish_login(server_login_state: string, finish_login_request: string): string;
 
 /**
+ * Whether `registration_record` is a well-formed OPAQUE registration record.
+ *
+ * The server used to store whatever the client sent, so a garbage record created an account nobody
+ * could ever sign in to or delete — blocking that email for good (the red-team report, R4-N3).
+ */
+export function is_valid_registration_record(registration_record: string): boolean;
+
+/**
  * Starts a login. `seed` is 32 bytes of caller-supplied randomness. Returns
  * `{ "serverLoginState", "loginResponse" }` as JSON.
  */
@@ -23,6 +31,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly create_registration_response: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly finish_login: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly is_valid_registration_record: (a: number, b: number) => number;
     readonly start_login: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

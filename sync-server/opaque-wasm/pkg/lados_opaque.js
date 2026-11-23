@@ -77,6 +77,21 @@ export function finish_login(server_login_state, finish_login_request) {
 }
 
 /**
+ * Whether `registration_record` is a well-formed OPAQUE registration record.
+ *
+ * The server used to store whatever the client sent, so a garbage record created an account nobody
+ * could ever sign in to or delete — blocking that email for good (the red-team report, R4-N3).
+ * @param {string} registration_record
+ * @returns {boolean}
+ */
+export function is_valid_registration_record(registration_record) {
+    const ptr0 = passStringToWasm0(registration_record, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.is_valid_registration_record(ptr0, len0);
+    return ret !== 0;
+}
+
+/**
  * Starts a login. `seed` is 32 bytes of caller-supplied randomness. Returns
  * `{ "serverLoginState", "loginResponse" }` as JSON.
  * @param {string} server_setup

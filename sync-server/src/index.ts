@@ -6,7 +6,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import init, { create_registration_response, finish_login, start_login } from "../opaque-wasm/pkg/lados_opaque.js";
+import init, {
+  create_registration_response,
+  finish_login,
+  is_valid_registration_record,
+  start_login,
+} from "../opaque-wasm/pkg/lados_opaque.js";
 import wasmModule from "../opaque-wasm/pkg/lados_opaque_bg.wasm";
 
 export interface Env {
@@ -199,6 +204,11 @@ async function opaqueRegisterFinish(env: Env, request: Request): Promise<Respons
   if (!email || !email.includes("@") || !registrationRecord) {
     return json({ error: "invalid_request" }, 400);
   }
+  // Refuse a record that is not a real OPAQUE registration: storing garbage created an account
+  // nobody could ever sign in to or delete, blocking that email for good (the report, R4-N3).
+  if (!is_valid_registration_record(registrationRecord)) {
+    return json({ error: "invalid_request" }, 400);
+  }
   if (!(await allow(env, `regfinish:ip:${clientIp(request)}`, 30, 900))) return json({ error: "rate_limited" }, 429);
   const existing = await env.DB.prepare("SELECT id FROM accounts WHERE email = ?").bind(email).first();
   if (existing) return json({ error: "email_taken" }, 409);
@@ -295,7 +305,9 @@ async function opaqueUpgradeStart(env: Env, account: AccountRow, request: Reques
 async function opaqueUpgradeFinish(env: Env, account: AccountRow, request: Request): Promise<Response> {
   const body = await readJson<{ registrationRecord?: unknown }>(request);
   const registrationRecord = str(body?.registrationRecord);
-  if (!registrationRecord) return json({ error: "invalid_request" }, 400);
+  if (!registrationRecord || !is_valid_registration_record(registrationRecord)) {
+    return json({ error: "invalid_request" }, 400);
+  }
   // A legacy account being converted to OPAQUE has not really changed its password; an account
   // that is already OPAQUE and registers again has. Only the latter gets a new timestamp.
   const before = await env.DB.prepare("SELECT scheme FROM accounts WHERE id = ?")

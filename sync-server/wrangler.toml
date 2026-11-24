@@ -26,7 +26,7 @@ TOKEN_TTL_SECONDS = "2592000"   # 30 days
 #   wrangler secret put PADDLE_WEBHOOK_SECRET
 # Optional admin token; enables /admin/comp (free accounts for family, friends…):
 #   wrangler secret put ADMIN_TOKEN
-PADDLE_PRICE_ID = "pri_01m7jfrjx7shwpnwpgccvkqhzn"   # sandbox "Lados Sync" 12 EUR/year
+PADDLE_PRICE_ID = "pri_01m86xxvmqc8207w0r5yfaq3zk"   # live "Lados Sync" 12 EUR/year, VAT included
 
 # ----- Staging / red-team environment ---------------------------------------
 # A completely separate Worker with its own D1 database and R2 bucket, so security testing never

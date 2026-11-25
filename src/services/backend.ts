@@ -137,7 +137,7 @@ export const backend = {
   copyRevisionPassword: (id: Uuid, index: number) => call<void>("copy_revision_password", { id, index }),
   openEntryUrl: (id: Uuid) => call<void>("open_entry_url", { id }),
   openExternalUrl: (url: string) => call<void>("open_external_url", { url }),
-  openInBrowser: (browser: "firefox" | "chrome" | "edge", url: string) =>
+  openInBrowser: (browser: "firefox" | "chrome" | "edge" | "opera", url: string) =>
     call<void>("open_in_browser", { browser, url }),
   getAutostart: () => call<boolean>("get_autostart"),
   setAutostart: (enabled: boolean) => call<void>("set_autostart", { enabled }),

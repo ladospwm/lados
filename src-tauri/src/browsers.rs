@@ -16,11 +16,13 @@ pub struct Browsers {
     pub firefox: bool,
     pub chrome: bool,
     pub edge: bool,
+    pub opera: bool,
 }
 
 const FIREFOX_NAMES: &[&str] = &["firefox", "firefox.exe"];
 const CHROME_NAMES: &[&str] = &["google-chrome", "google-chrome-stable", "chromium", "chrome", "chrome.exe"];
 const EDGE_NAMES: &[&str] = &["microsoft-edge", "microsoft-edge-stable", "msedge", "msedge.exe"];
+const OPERA_NAMES: &[&str] = &["opera", "opera-stable", "opera.exe"];
 
 #[tauri::command]
 pub fn detected_browsers() -> Browsers {
@@ -28,6 +30,7 @@ pub fn detected_browsers() -> Browsers {
         firefox: executable(FIREFOX_NAMES, firefox_paths()).is_some(),
         chrome: executable(CHROME_NAMES, chrome_paths()).is_some(),
         edge: executable(EDGE_NAMES, edge_paths()).is_some(),
+        opera: executable(OPERA_NAMES, opera_paths()).is_some(),
     }
 }
 
@@ -43,6 +46,7 @@ pub fn open_in_browser(app: AppHandle, browser: String, url: String) -> Result<(
         "firefox" => executable(FIREFOX_NAMES, firefox_paths()),
         "chrome" => executable(CHROME_NAMES, chrome_paths()),
         "edge" => executable(EDGE_NAMES, edge_paths()),
+        "opera" => executable(OPERA_NAMES, opera_paths()),
         _ => None,
     };
     if let Some(exe) = target
@@ -86,6 +90,18 @@ fn chrome_paths() -> Vec<PathBuf> {
 #[cfg(target_os = "windows")]
 fn edge_paths() -> Vec<PathBuf> {
     windows_paths(&[&["Microsoft", "Edge", "Application", "msedge.exe"]])
+}
+
+#[cfg(target_os = "windows")]
+fn opera_paths() -> Vec<PathBuf> {
+    // Opera installs per-user by default (LocalAppData\Programs\Opera) and ships both
+    // `opera.exe` and a `launcher.exe`; either opens a URL.
+    windows_paths(&[
+        &["Opera", "opera.exe"],
+        &["Opera", "launcher.exe"],
+        &["Programs", "Opera", "opera.exe"],
+        &["Programs", "Opera", "launcher.exe"],
+    ])
 }
 
 /// Joins each sub-path under the usual Windows install roots: Program Files, Program Files (x86)
@@ -133,5 +149,16 @@ fn edge_paths() -> Vec<PathBuf> {
     vec![
         PathBuf::from("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
         PathBuf::from("/usr/bin/microsoft-edge"),
+    ]
+}
+
+#[cfg(not(target_os = "windows"))]
+fn opera_paths() -> Vec<PathBuf> {
+    vec![
+        PathBuf::from("/Applications/Opera.app/Contents/MacOS/Opera"),
+        PathBuf::from("/usr/bin/opera"),
+        PathBuf::from("/usr/bin/opera-stable"),
+        PathBuf::from("/usr/local/bin/opera"),
+        PathBuf::from("/snap/bin/opera"),
     ]
 }

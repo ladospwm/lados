@@ -22,6 +22,7 @@ export interface BrowserPresence {
   firefox: boolean;
   chrome: boolean;
   edge: boolean;
+  opera: boolean;
 }
 
 export type ErrorKind =

@@ -4,14 +4,17 @@
 The shared sources live in `browser-extension/`; only the manifest differs:
   - Firefox (MV2):      browser-extension/manifest.json
   - Chrome/Edge (MV3):  browser-extension/manifest.chrome.json
+  - Opera (MV3):        browser-extension/manifest.opera.json
 
 Usage:  python3 scripts/build-extension.py
 
 Output (all under browser-extension/build/, git-ignored):
   build/firefox/        ready to "Load Temporary Add-on" in Firefox
   build/chrome/         ready to "Load unpacked" in Chrome/Edge
+  build/opera/          ready to "Load unpacked" in Opera (opera:extensions)
   build/lados-firefox.zip
   build/lados-chrome.zip
+  build/lados-opera.zip
 """
 import os
 import shutil
@@ -25,6 +28,7 @@ SHARED = ["background.js", "content.js", "popup.html", "popup.js"]
 TARGETS = {
     "firefox": "manifest.json",
     "chrome": "manifest.chrome.json",
+    "opera": "manifest.opera.json",
 }
 
 

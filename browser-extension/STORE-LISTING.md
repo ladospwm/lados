@@ -232,6 +232,47 @@ password manager, autofill, offline, local, privacy, lados
 
 ---
 
+## Opera Add‑ons
+
+Opera is Chromium-based and accepts **MV3**, so the Chrome package works as-is. The build emits a
+dedicated package anyway, with an Opera-flavoured manifest (`manifest.opera.json`: no
+`minimum_chrome_version`, plus `developer` and `minimum_opera_version`).
+
+- **Store**: https://addons.opera.com — submit at
+  https://addons.opera.com/developer/upload/ (sign in with an Opera account; free).
+- **Package**: `browser-extension/build/lados-opera.zip` (rebuild with `python scripts/build-extension.py`)
+- **Local test**: open `opera:extensions` → enable **Developer mode** → **Load unpacked** → pick
+  `browser-extension/build/opera`.
+
+**Name**
+```
+Lados
+```
+
+**Summary** (one sentence, shown in the catalogue and the extensions manager)
+```
+Autofill logins from your local Lados vault. Offline, no account, no cloud.
+```
+
+**Category** — `Productivity` · **Language** — `English`
+
+**Description** — use the same detailed description as Chrome/Edge above.
+
+**License** — set **GPL-3.0** (or paste your own EULA). Important: if you leave the license field
+empty, Opera licenses the content under **CC BY-NC-ND** by default, which does not match this
+project. Paste the repository `LICENSE` / GPL-3.0.
+
+**Screenshots** — Opera prefers **612×408 px** (the maximum is 800×600), on a white background,
+showing the extension in the browser UI and filling a login form. One showing the toolbar button and
+one showing a fill is ideal.
+
+**Notes to reviewer** — same as the Firefox 0.4.4 notes above.
+
+Opera also has an [Add-ons API](https://help.opera.com/en/extensions/addons-api/) if you ever want to
+push updates automatically; not needed now.
+
+---
+
 ## Visual assets (sizes)
 
 | Asset | Chrome Web Store | Microsoft Edge Add‑ons |
@@ -244,6 +285,9 @@ password manager, autofill, offline, local, privacy, lados
 *Full bleed* = the image runs to the edges: square corners, no padding, no drop shadow. Google
 prefers 1280×800 but **downscales every screenshot to 640×400**, so avoid fine text.
 
+**Opera Add‑ons**: icon **128×128 required** (48×48 recommended); screenshots **612×408** preferred
+(max 800×600), on a white background. Set the license to **GPL-3.0**.
+
 ## Publishing checklist
 
 - [x] Package — `python3 scripts/build-extension.py` → `build/lados-chrome.zip`
@@ -253,6 +297,7 @@ prefers 1280×800 but **downscales every screenshot to 640×400**, so avoid fine
 - [ ] **Screenshots** — Chrome needs ≥1 (see below); Edge optional
 - [ ] Chrome small promo tile 440×280 (recommended)
 - [ ] Edge logo 300×300, and (if asked) the 440×280 small tile
+- [ ] **Opera Add‑ons**: `build/lados-opera.zip`, icon 128×128, screenshot 612×408, license **GPL-3.0**, submit at addons.opera.com
 - [ ] **Privacy policy URL** live on the web (see below)
 - [ ] Chrome Web Store: pay the one‑time $5 developer fee; Edge: no fee
 

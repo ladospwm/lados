@@ -1,5 +1,5 @@
 import { applyTheme } from "../app";
-import { extensionInstallDialog, openBrowserDownload, openExtensionStore } from "./browser-extension";
+import { extensionInstallDialog } from "./browser-extension";
 import { backend } from "../services/backend";
 import { checkForAppUpdateInteractive } from "../services/updater";
 import { preferences, store } from "../state/store";
@@ -41,7 +41,6 @@ export async function openSettings(): Promise<void> {
   const current = preferences();
   const mobile = await backend.isMobileShell().catch(() => false);
   const autostart = mobile ? false : await backend.getAutostart().catch(() => false);
-  const browsers = mobile ? null : await backend.detectedBrowsers().catch(() => null);
 
   // The pairing code the extension must be given. It already exists (the app creates it at start),
   // so failing here only hides the section rather than breaking Settings.
@@ -189,32 +188,11 @@ export async function openSettings(): Promise<void> {
             h("h3", { text: "Browser fill (desktop)" }),
             h("p", {
               class: "muted",
-              text: "The Lados extension fills login forms from this vault while Lados is running and the vault is unlocked. The same extension runs in Firefox, Chrome and Edge.",
+              text: "The Lados extension fills login forms from this vault while Lados is running and the vault is unlocked. The same extension runs in Firefox, Chrome, Edge and Opera.",
             }),
-            h(
-              "p",
-              { class: "muted" },
-              browsers?.firefox
-                ? [
-                    h(
-                      "button",
-                      { type: "button", class: "link-button", onClick: () => void openExtensionStore("firefox") },
-                      "Add it in Firefox (addons.mozilla.org)",
-                    ),
-                    ".",
-                  ]
-                : [
-                    h(
-                      "button",
-                      { type: "button", class: "link-button", onClick: () => void openBrowserDownload("firefox") },
-                      "Get Firefox",
-                    ),
-                    " to add it there.",
-                  ],
-            ),
             h("p", {
               class: "muted",
-              text: "The Chrome and Edge builds are in their stores' review; Lados will link them here once they are published.",
+              text: "It installs from the browser's own store in one click - the dialog picks the right one for you. Chrome, Edge and Opera are in their stores' review; Lados links them here the moment they are published.",
             }),
             h(
               "button",

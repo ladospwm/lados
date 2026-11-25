@@ -106,3 +106,38 @@ jobs:
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+      # ----- Code signing (Windows) — SignPath Foundation ------------------------
+      # Free Authenticode signing for open source. NOT ACTIVE YET: it needs a
+      # SignPath account with an approved project + signing policy, and the repo
+      # secrets SIGNPATH_API_TOKEN and SIGNPATH_ORG_ID. Until then, SmartScreen
+      # shows "Unknown publisher" for the unsigned installer.
+      #
+      # When it is approved, the flow changes from "build and upload" to
+      # "build -> sign -> upload", because tauri-action uploads the installer
+      # directly today. Sketch of the change (see docs/CODE-SIGNING.md):
+      #
+      #   - name: Build (unsigned)
+      #     uses: tauri-apps/tauri-action@v1
+      #     with:
+      #       args: ${{ matrix.args }}
+      #       releaseId: ${{ needs.create-release.outputs.release_id }}
+      #       uploadUpdaterJson: false          # upload after signing
+      #
+      #   - name: Sign the Windows installers
+      #     if: matrix.platform == 'windows-latest'
+      #     uses: signpath/github-action-submit-signing-request@v1
+      #     with:
+      #       api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #       organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+      #       project-slug: lados
+      #       signing-policy-slug: release-signing
+      #       github-artifact-name: ${{ matrix.name }}
+      #       wait-for-completion: true
+      #       output-artifact-directory: signed
+      #
+      #   - name: Upload the signed installers (and latest.json)
+      #     ...attach the files from ./signed to the release...
+      #
+      # Note: the ${TAURI_SIGNING_*} secrets above are for the in-app UPDATER
+      # (minisign). They are unrelated to Authenticode / SmartScreen.

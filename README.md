@@ -113,6 +113,19 @@ to load it for development or build the store packages:
 python3 scripts/build-extension.py
 ```
 
+## Code signing policy
+
+The Windows installers we publish are code signed, so Windows can verify who built them
+and that they were built from this repository.
+
+**Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).**
+
+- **Committers and reviewers**: the repository owner ([@ladospwm](https://github.com/ladospwm)).
+- **Approvers**: the repository owner approves each signing request before a release is signed.
+- The certificate is issued to **SignPath Foundation**, which is the listed publisher of the signed binaries; the signed files are the Windows `.exe`/`.msi` installers built from the tagged commit by GitHub Actions, and nothing else.
+
+Full policy: <https://ladospwm.vercel.app/code-signing> · Privacy: <https://ladospwm.vercel.app/privacy>
+
 ## License
 
 [GPL-3.0-only](LICENSE) — Copyright (C) 2026 Adrià Junquera.

@@ -58,19 +58,27 @@ async function openUrl(url: string, what: string): Promise<void> {
   }
 }
 
-/** Opens a browser's published store page, or says that it is not published yet. The page opens
- *  in that browser itself (so Firefox's page does not land in Chrome, which would offer Firefox). */
+/** Where a browser is sent while its store listing is still in review; the page
+ *  redirects to the store the moment the listing is live, so publishing a store
+ *  never needs an app release. */
+const EXTENSION_PAGE = "https://ladospwm.vercel.app/extension";
+
+/** Opens a browser's published store page, or the Lados extension page that will
+ *  redirect there once it is published. The page opens in that browser itself (so
+ *  Firefox's page does not land in Chrome, which would offer Firefox). */
 export async function openExtensionStore(id: BrowserId = "firefox"): Promise<void> {
   const store = STORES[id];
-  if (!store.url) {
-    toast(`The ${store.label} version is not published yet.`, "info");
-    return;
-  }
+  const url = store.url ?? `${EXTENSION_PAGE}#${id}`;
   try {
-    await backend.openInBrowser(id, store.url);
-    toast(`Opening the ${store.label} add-on page in ${store.label}.`, "info");
+    await backend.openInBrowser(id, url);
+    toast(
+      store.url
+        ? `Opening the ${store.label} add-on page in ${store.label}.`
+        : `Opening the Lados extension page in ${store.label}.`,
+      "info",
+    );
   } catch {
-    toast(`Could not open ${store.label}. Visit ${store.url}`, "error");
+    toast(`Could not open ${store.label}. Visit ${url}`, "error");
   }
 }
 
@@ -99,19 +107,16 @@ function browserChoices(browsers: BrowserPresence): Child[] {
     ];
   }
 
-  const buttons = installed.map((id) => {
-    const store = STORES[id];
-    return store.url
-      ? actionButton(`Add to ${store.label}`, () => void openExtensionStore(id), true)
-      : h("span", { class: "muted", text: `${store.label}: in store review` });
-  });
+  const buttons = installed.map((id) =>
+    actionButton(`Add to ${STORES[id].label}`, () => void openExtensionStore(id), true),
+  );
 
   return [
     h("p", { class: "muted", text: "Add the extension in the browser you use:" }),
     h("div", { class: "browser-choices" }, ...buttons),
     h("p", {
       class: "field-hint",
-      text: "Each store page opens in that browser - click Add there and confirm. There is no file to download.",
+      text: "Each button opens the right page for that browser. There is no file to download.",
     }),
   ];
 }

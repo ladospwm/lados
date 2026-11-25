@@ -6,16 +6,17 @@ import { h, type Child } from "../ui/dom";
 import { showDialog } from "../ui/modal";
 import { toast } from "../ui/toast";
 
-type BrowserId = "firefox" | "chrome" | "edge";
+type BrowserId = "firefox" | "chrome" | "edge" | "opera";
 
 /**
  * Store pages per browser. Set the URL once the add-on is published there;
- * leave `null` while it is still pending review (the button shows as unavailable).
+ * leave `null` while it is still pending review (the entry shows as unavailable).
  */
 const STORES: Record<BrowserId, { label: string; url: string | null }> = {
   firefox: { label: "Firefox", url: "https://addons.mozilla.org/en-US/firefox/addon/lados/" },
   chrome: { label: "Chrome", url: null },
   edge: { label: "Edge", url: null },
+  opera: { label: "Opera", url: null },
 };
 
 /** Where to get the browser itself, for when it is not installed yet. */
@@ -23,7 +24,11 @@ const BROWSER_DOWNLOADS: Record<BrowserId, string> = {
   firefox: "https://www.mozilla.org/firefox/new/",
   chrome: "https://www.google.com/chrome/",
   edge: "https://www.microsoft.com/edge",
+  opera: "https://www.opera.com/download",
 };
+
+/** Order shown in the dialog. */
+const ORDER: BrowserId[] = ["firefox", "chrome", "edge", "opera"];
 
 const DISMISSED_KEY = "lados-browser-extension-dismissed";
 
@@ -58,7 +63,7 @@ async function openUrl(url: string, what: string): Promise<void> {
 export async function openExtensionStore(id: BrowserId = "firefox"): Promise<void> {
   const store = STORES[id];
   if (!store.url) {
-    toast(`The ${store.label} version isn’t published yet.`, "info");
+    toast(`The ${store.label} version is not published yet.`, "info");
     return;
   }
   try {
@@ -78,32 +83,35 @@ function actionButton(label: string, action: () => void, primary = false): HTMLE
   return h("button", { type: "button", class: ["button", primary ? "primary" : ""], onClick: action }, label);
 }
 
-/** The steps for Firefox, depending on whether it is already installed. */
-function firefoxSteps(installed: boolean): Child[] {
-  if (installed) {
+/** One entry per installed browser: an "Add to <browser>" button when that browser has a store
+ *  listing, or a note while the listing is still in review. With none installed, offer downloads. */
+function browserChoices(browsers: BrowserPresence): Child[] {
+  const installed = ORDER.filter((id) => browsers[id]);
+  if (installed.length === 0) {
     return [
-      h("p", { class: "muted", text: "Firefox is ready. Add the Lados extension:" }),
+      h("p", { class: "muted", text: "You need a browser first - they are free:" }),
       h(
         "div",
         { class: "browser-choices" },
-        actionButton("Add to Firefox", () => void openExtensionStore("firefox"), true),
+        actionButton("Download Firefox", () => void openBrowserDownload("firefox"), true),
+        actionButton("Download Chrome", () => void openBrowserDownload("chrome")),
       ),
-      h("p", {
-        class: "field-hint",
-        text: "The add-on page opens in Firefox — click “Add to Firefox” there and confirm. There is no file to download.",
-      }),
     ];
   }
+
+  const buttons = installed.map((id) => {
+    const store = STORES[id];
+    return store.url
+      ? actionButton(`Add to ${store.label}`, () => void openExtensionStore(id), true)
+      : h("span", { class: "muted", text: `${store.label}: in store review` });
+  });
+
   return [
-    h("p", { class: "muted", text: "You need Firefox first — it’s free:" }),
-    h(
-      "div",
-      { class: "browser-choices" },
-      actionButton("Download Firefox", () => void openBrowserDownload("firefox"), true),
-    ),
+    h("p", { class: "muted", text: "Add the extension in the browser you use:" }),
+    h("div", { class: "browser-choices" }, ...buttons),
     h("p", {
       class: "field-hint",
-      text: "Install Firefox, then open this dialog again (Settings ▸ Install the browser extension) to add the Lados extension in one click.",
+      text: "Each store page opens in that browser - click Add there and confirm. There is no file to download.",
     }),
   ];
 }
@@ -112,7 +120,7 @@ function firefoxSteps(installed: boolean): Child[] {
 export async function extensionInstallDialog(): Promise<void> {
   const browsers: BrowserPresence = await backend
     .detectedBrowsers()
-    .catch(() => ({ firefox: false, chrome: false, edge: false }));
+    .catch(() => ({ firefox: false, chrome: false, edge: false, opera: false }));
 
   await showDialog<"done">({
     title: "Autofill in your browser",
@@ -121,11 +129,11 @@ export async function extensionInstallDialog(): Promise<void> {
       "div",
       { class: "stack", style: "gap: 14px" },
       h("p", {}, "The Lados extension fills logins from your vault. It works offline, with no account."),
-      ...firefoxSteps(browsers.firefox),
+      ...browserChoices(browsers),
       h(
         "p",
         { class: "muted" },
-        "The extension talks only to Lados on this computer. The same extension also runs in Chrome and Edge — the Firefox build is the one listed here; the Chrome and Edge builds are in their stores' review.",
+        "The same extension runs in Firefox, Chrome, Edge and Opera, and talks only to Lados on this computer.",
       ),
     ),
     submitLabel: "Close",

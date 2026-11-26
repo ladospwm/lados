@@ -2205,7 +2205,7 @@ img.icon-preview {
 .settings {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
 }
 
 .settings-section {
@@ -2214,7 +2214,14 @@ img.icon-preview {
   gap: 12px;
 }
 
+/* A line between sections, so a long Settings page reads as distinct blocks instead of one run. */
+.settings-section + .settings-section {
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
 .settings-section h3 {
+  margin: 0;
   color: var(--text-faint);
   font-size: 12px;
   letter-spacing: 0.06em;

@@ -120,6 +120,15 @@ fn handle_client(app: Arc<AppHandle>, mut stream: TcpStream) {
         return;
     }
 
+    // A CORS preflight does not carry the custom header it is asking about, so it must be
+    // answered *before* the pairing check - otherwise the browser never sends the real request
+    // and the extension reports "Lados is not running" (and blames the pairing code).
+    let cors = origin.as_deref();
+    if method == "OPTIONS" {
+        respond(&mut stream, 204, "", cors);
+        return;
+    }
+
     // ...and it must know the pairing code. A web page, another extension or a script that merely
     // knocks on the port is refused here. A local program that *reads* the code (it is stored as
     // plain text) still cannot obtain a password: that is confirmed by the user — see `reveal_for`.
@@ -127,14 +136,7 @@ fn handle_client(app: Arc<AppHandle>, mut stream: TcpStream) {
         state.autofill_paired(header_value(&request, "x-lados-token").as_deref())
     });
     if !paired {
-        respond(&mut stream, 403, r#"{"error":"not paired"}"#, origin.as_deref());
-        return;
-    }
-
-    let cors = origin.as_deref();
-
-    if method == "OPTIONS" {
-        respond(&mut stream, 204, "", cors);
+        respond(&mut stream, 403, r#"{"error":"not paired"}"#, cors);
         return;
     }
 

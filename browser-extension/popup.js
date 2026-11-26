@@ -75,6 +75,10 @@ pairBtn.addEventListener("click", async () => {
   if (state === "unlocked" || state === "locked" || state === "closed") {
     tokenInput.value = "";
     await refresh();
+  } else if (state === "offline") {
+    // The app could not be reached: do not blame the code for a connection problem.
+    render("off", "Can't reach Lados - is it running?", null);
+    showPairing(true);
   } else {
     render("off", "That code was refused — check it in Lados ▸ Settings", null);
     showPairing(true);

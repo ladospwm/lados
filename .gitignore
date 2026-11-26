@@ -16,6 +16,11 @@ Desktop.ini
 # Tooling scratch
 .playwright-mcp/
 
+# Local Cloudflare usage check (reads your wrangler token from this machine; never committed)
+sync-server/scripts/usage.mjs
+sync-server/scripts/usage.bat
+sync-server/scripts/usage.ps1
+
 # Browser-extension build artifacts (regenerated before uploading to AMO)
 lados-firefox-*.zip
 lados-firefox-*.xpi

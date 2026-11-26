@@ -107,16 +107,21 @@ function browserChoices(browsers: BrowserPresence): Child[] {
     ];
   }
 
-  const buttons = installed.map((id) =>
-    actionButton(`Add to ${STORES[id].label}`, () => void openExtensionStore(id), true),
-  );
+  const rows: Child[] = installed.map((id) => {
+    const store = STORES[id];
+    // Only a browser whose store listing is live gets a button. A "coming soon" line is honest;
+    // a button that opens a page whose only link is another browser's store is not.
+    return store.url
+      ? actionButton(`Add to ${store.label}`, () => void openExtensionStore(id), true)
+      : h("span", { class: "muted", text: `${store.label}: coming soon` });
+  });
 
   return [
     h("p", { class: "muted", text: "Add the extension in the browser you use:" }),
-    h("div", { class: "browser-choices" }, ...buttons),
+    h("div", { class: "browser-choices" }, ...rows),
     h("p", {
       class: "field-hint",
-      text: "Each button opens the right page for that browser. There is no file to download.",
+      text: "Firefox is available now; Chrome, Edge and Opera are in their stores' review.",
     }),
   ];
 }

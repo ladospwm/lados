@@ -51,6 +51,29 @@ and its privacy questionnaire is already covered above.)
 
 ---
 
+## Firefox (AMO) 0.4.5 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+The "Fill with Lados" widget no longer flickers: an open login picker now stays open instead of
+closing itself as soon as it is clicked.
+```
+
+**Notes to reviewer:**
+
+```
+Two behaviour fixes in content.js only.
+
+1. The focusin listener now ignores focus while the widget is already on screen. It used to
+   schedule a full refresh on every focus, which re-rendered the pill (and closed the picker).
+2. renderPanel keeps a picker the user opened open across a repaint, instead of forcing it hidden.
+
+No manifest, permission or network change. Source and build: python scripts/build-extension.py.
+```
+
+---
+
 ## Firefox (AMO) 0.4.4 — release notes & notes to reviewer
 
 **Release notes** (shown to users):

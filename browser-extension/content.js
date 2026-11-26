@@ -301,6 +301,9 @@
       panel.hidden = true;
       return;
     }
+    // Keep a picker the user just opened open across a repaint (a refresh used to close it,
+    // which made the widget appear to vanish as soon as it was clicked).
+    const wasOpen = !panel.hidden;
     panel.replaceChildren();
     matches.forEach((entry, index) => {
       const row = document.createElement("div");
@@ -327,7 +330,7 @@
     foot.addEventListener("click", openApp);
     panel.append(foot);
 
-    panel.hidden = true;
+    panel.hidden = !wasOpen;
   }
 
   function showPanel() {
@@ -449,8 +452,16 @@
   window.addEventListener("scroll", onScrollOrResize, { passive: true });
   window.addEventListener("resize", onScrollOrResize, { passive: true });
   // A field below the fold becomes usable only when the user scrolls to it (N4): re-scan when
-  // focus lands anywhere, which covers clicking such a field.
-  document.addEventListener("focusin", () => scheduleRefresh(), true);
+  // focus lands anywhere - but only while there is no widget yet. Re-scanning once the pill is on
+  // screen re-rendered it on every focus and closed an open picker, so the widget flickered.
+  document.addEventListener(
+    "focusin",
+    () => {
+      if (host) return; // the pill is already on screen; do not re-render it on every focus
+      scheduleRefresh();
+    },
+    true,
+  );
 
   // Re-check whenever the tab regains focus, so a Lados that was locked or closed
   // since the last visit is reflected instead of showing stale candidates.

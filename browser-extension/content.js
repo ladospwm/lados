@@ -64,7 +64,7 @@
     return parts.length >= 4 ? Number(parts[3]) : 1;
   }
 
-  function isVisible(el) {
+  function isDisplayable(el) {
     if (!(el instanceof HTMLElement)) return false;
     if (el.disabled || el.readOnly) return false;
 
@@ -113,8 +113,16 @@
       }
     }
 
-    // Something drawn on top of the field (hp-overlay): hit-test its centre. Only when the centre
-    // is inside the viewport; a below-the-fold field is hit-tested again when it is filled.
+    return true;
+  }
+
+  /** Whether the field can be *filled*: displayable, and nothing drawn on top of it (the
+   *  hp-overlay honeypot). Only the fill path needs this. Detection (showing the pill) uses
+   *  `isDisplayable` alone, because a transient overlay - the browser's own autofill dropdown, a
+   *  page popup - used to make the widget disappear the moment the user reached for it. */
+  function isVisible(el) {
+    if (!isDisplayable(el)) return false;
+    const rect = el.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
     if (cx >= 0 && cy >= 0 && cx < window.innerWidth && cy < window.innerHeight) {
@@ -122,7 +130,6 @@
       const ours = top === host || (host && host.contains(top));
       if (top && top !== el && !el.contains(top) && !ours) return false;
     }
-
     return true;
   }
 
@@ -141,8 +148,9 @@
     return fallback;
   }
 
-  function findLoginFields() {
-    const passwords = [...document.querySelectorAll('input[type="password"]')].filter(isVisible);
+  function findLoginFields(strict = true) {
+    const visible = strict ? isVisible : isDisplayable;
+    const passwords = [...document.querySelectorAll('input[type="password"]')].filter(visible);
     if (passwords.length === 0) return null;
     const password = passwords[0];
     const scope = password.form || password.closest("form") || document;
@@ -344,7 +352,7 @@
 
   function positionPill() {
     if (!host) return;
-    const anchor = (findLoginFields() || fields)?.password;
+    const anchor = (findLoginFields(false) || fields)?.password;
     if (!anchor) return;
     const rect = anchor.getBoundingClientRect();
     const width = pill ? pill.offsetWidth : 160;
@@ -389,7 +397,7 @@
   // -------------------------------------------------------------------------
 
   async function refresh() {
-    fields = findLoginFields();
+    fields = findLoginFields(false);
     if (!fields) {
       teardown();
       return;

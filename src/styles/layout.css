@@ -207,9 +207,15 @@
 }
 
 .unlock-links {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+}
+
+/* Secondary actions: left-aligned in their cell, so a two-line label reads cleanly. */
+.unlock-links .link-button {
+  justify-content: flex-start;
+  text-align: left;
 }
 
 .shake {
@@ -444,9 +450,8 @@
   }
 
   .unlock-links {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 10px 16px;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .recent-forget {

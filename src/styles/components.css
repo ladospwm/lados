@@ -1159,6 +1159,44 @@ select.input.compact {
   color: var(--text-muted);
 }
 
+/* One dialog, two checked steps: adding a local vault to sync used to ask twice, in two windows. */
+.sync-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sync-step[hidden] {
+  display: none;
+}
+
+.sync-step h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sync-step .muted {
+  margin: 0;
+}
+
+.sync-step .button {
+  align-self: flex-start;
+}
+
+.sync-step-status[data-tone="ok"] {
+  color: var(--success);
+}
+
+.sync-step-status[data-tone="error"] {
+  color: var(--danger-text);
+}
+
 .confirm-message strong {
   color: var(--text);
 }

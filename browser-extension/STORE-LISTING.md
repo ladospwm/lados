@@ -51,6 +51,75 @@ and its privacy questionnaire is already covered above.)
 
 ---
 
+## Firefox (AMO) 0.4.8 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+The "Fill with Lados" prompt no longer flashes and disappears on a login page where you have no
+saved login yet. It only appears when there is something to offer.
+```
+
+**Notes to reviewer:**
+
+```
+One behaviour fix in content.js. The widget painted a "Checking..." pill before the app answered,
+and then removed it when the page turned out to have no saved login, so it flashed and vanished.
+It now renders only once the app's answer is known, and .pill[hidden] is respected.
+
+No manifest, permission or network change.
+```
+
+---
+
+## Firefox (AMO) 0.4.7 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+The "Fill with Lados" widget is now resilient when a page rebuilds its login form: it no longer
+disappears if the field is briefly replaced or moved, and it no longer re-renders while it is
+already on screen.
+```
+
+**Notes to reviewer:**
+
+```
+Two robustness fixes in content.js only (on top of 0.4.6). (1) A scan that finds no login field - an
+SPA re-render, a form swap, a step change - no longer tears the widget down on the first miss: it
+retries briefly and only removes it if the field stays gone. (2) A re-scan while the widget is
+already showing updates silently instead of repainting "Checking...", which made it flicker.
+
+No manifest, permission or network change.
+```
+
+---
+
+## Firefox (AMO) 0.4.6 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+Fixed the "Fill with Lados" widget disappearing the moment it appeared: a transient overlay over
+the login field (for example the browser's own autofill dropdown) no longer removes it.
+```
+
+**Notes to reviewer:**
+
+```
+One behaviour fix in content.js only.
+
+Login-field detection (which decides whether to show the widget) used the same strict visibility
+check as filling, including a hit-test that rejects a field covered by another element (the
+hp-overlay honeypot). Any transient overlay over the field therefore made the widget tear itself
+down. Detection now uses a structural check (size, opacity, ancestors, clipping), and only the
+fill path still requires the field to be uncovered, so the honeypot protection is unchanged.
+
+No manifest, permission or network change.
+```
+
+---
+
 ## Firefox (AMO) 0.4.5 — release notes & notes to reviewer
 
 **Release notes** (shown to users):

@@ -26,6 +26,7 @@
   let debounce = null;
   let lastUrl = location.href;
   let positionRaf = 0;
+  let misses = 0;
 
   // -------------------------------------------------------------------------
   // Small DOM helpers built with DOM APIs only
@@ -399,12 +400,27 @@
   async function refresh() {
     fields = findLoginFields(false);
     if (!fields) {
+      // A login field can vanish for a moment - an SPA re-render, a form swap, a step change. Do
+      // not remove the widget on a single miss (it used to vanish as the user reached for it):
+      // retry briefly, and only tear down if the field really stays gone.
+      misses += 1;
+      if (host && misses < 6) {
+        scheduleRefresh();
+        return;
+      }
       teardown();
+      misses = 0;
       return;
     }
+    misses = 0;
 
-    state = "loading";
-    renderPill();
+    // Only show "Checking Lados…" on the first scan. Re-fetching while the pill is already up (a
+    // URL change, the tab regaining focus) must not repaint it, or it visibly flickers.
+    const steady = state === "ready" && matches.length > 0;
+    if (!steady) {
+      state = "loading";
+      renderPill();
+    }
 
     const response = await api.runtime
       .sendMessage({ type: "find", url: location.href })
@@ -421,7 +437,7 @@
       matches = [];
       state = response.state;
       renderPill();
-    } else {
+    } else if (!steady) {
       // No saved login for this page: stay out of the way.
       teardown();
     }

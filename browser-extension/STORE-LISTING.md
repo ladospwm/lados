@@ -51,6 +51,29 @@ and its privacy questionnaire is already covered above.)
 
 ---
 
+## Firefox (AMO) 0.4.7 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+The "Fill with Lados" widget is now resilient when a page rebuilds its login form: it no longer
+disappears if the field is briefly replaced or moved, and it no longer re-renders while it is
+already on screen.
+```
+
+**Notes to reviewer:**
+
+```
+Two robustness fixes in content.js only (on top of 0.4.6). (1) A scan that finds no login field - an
+SPA re-render, a form swap, a step change - no longer tears the widget down on the first miss: it
+retries briefly and only removes it if the field stays gone. (2) A re-scan while the widget is
+already showing updates silently instead of repainting "Checking...", which made it flicker.
+
+No manifest, permission or network change.
+```
+
+---
+
 ## Firefox (AMO) 0.4.6 — release notes & notes to reviewer
 
 **Release notes** (shown to users):

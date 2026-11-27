@@ -9,11 +9,11 @@ import type { AppStatus, CloudVault, LocalVaultView } from "../types";
 import { field, fileNameOf, keyFileField, passwordInput } from "../ui/controls";
 import { h, mount, type Child } from "../ui/dom";
 import { svgIcon } from "../ui/icons";
-import { confirmDialog, showDialog } from "../ui/modal";
-import { toast, toastError } from "../ui/toast";
+import { confirmDialog, openModal, showDialog } from "../ui/modal";
+import { errorMessage, toast, toastError } from "../ui/toast";
 import { formatDay, relativeTime } from "../utils/format";
 import { estimateStrength } from "../utils/strength";
-import { confirmCredentialsDialog, credentialsDialog } from "./credentials";
+import { confirmCredentialsDialog } from "./credentials";
 import { describeChanges, hasChanges } from "./reports";
 
 /** A vault whose master password isn't the account's cannot be synced until it is re-keyed. */
@@ -22,14 +22,168 @@ function isDifferentMaster(error: unknown): boolean {
 }
 
 /** Asks for a vault's or the master credentials; returns them, or null if cancelled. */
-function askPassword(title: string, message: string, initialKeyFile: string | null) {
-  return credentialsDialog<{ password: string; keyFile: string | null }>({
-    title,
-    message,
-    submitLabel: "Continue",
-    busyLabel: "Checking…",
-    initialKeyFile,
-    action: async (credentials) => credentials,
+/**
+ * The one dialog that adds a local vault to sync. The old flow asked twice, in two near-identical
+ * windows - first the vault's own password, then the account's - which is easy to get lost in. Here
+ * both steps live in one dialog: the vault's password is checked in place, and only once it is
+ * accepted is the account's password asked for. The backend calls are unchanged.
+ */
+function syncVaultDialog(path: string, open: boolean): Promise<void> {
+  const file = fileNameOf(path);
+  return new Promise((resolve) => {
+    let settled = false;
+    let modal: ReturnType<typeof openModal> | null = null;
+    let vaultVerified = open;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      modal?.close();
+      resolve();
+    };
+
+    const vaultPassword = passwordInput({ autofocus: !open, placeholder: "Master password" });
+    const vaultKeyFile = keyFileField({});
+    const accountPassword = passwordInput({ autofocus: open, placeholder: "Lados Sync master password" });
+    const accountKeyFile = keyFileField({});
+
+    const setStatus = (element: HTMLElement, tone: "ok" | "error" | null, message = "") => {
+      if (tone) element.dataset.tone = tone;
+      else delete element.dataset.tone;
+      element.textContent = message;
+      element.hidden = !tone;
+    };
+
+    const withBusy = async (button: HTMLButtonElement, label: string, action: () => Promise<void>) => {
+      const original = button.textContent ?? "";
+      button.disabled = true;
+      button.replaceChildren(h("span", { class: "spinner", "aria-hidden": "true" }), label);
+      try {
+        await action();
+      } finally {
+        if (!settled) {
+          button.disabled = false;
+          button.textContent = original;
+        }
+      }
+    };
+
+    // ----- step 1: this vault -----
+    const vaultStatus = h("div", { class: "field-hint sync-step-status", hidden: true });
+    const checkButton = h("button", { type: "button", class: "button" }, "Check password");
+    const step1 = h(
+      "section",
+      { class: "sync-step" },
+      h("h4", { text: "1 · This vault" }),
+      open
+        ? h("p", { class: "sync-step-status", "data-tone": "ok", text: `“${file}” is open in Lados, so it is already unlocked.` })
+        : h(
+            "div",
+            { class: "stack" },
+            h("p", { class: "muted", text: `Enter the master password of “${file}”.` }),
+            field(`Master password of “${file}”`, vaultPassword.element, { target: vaultPassword.input }),
+            field("Key file", vaultKeyFile.element, { hint: "Only if it was protected with one." }),
+            checkButton,
+            vaultStatus,
+          ),
+    );
+
+    // ----- step 2: your Lados Sync account -----
+    const accountStatus = h("div", { class: "field-hint sync-step-status", hidden: true });
+    const syncButton = h("button", { type: "button", class: "button primary" }, "Sync this vault");
+    const step2 = h(
+      "section",
+      { class: "sync-step", hidden: !open },
+      h("h4", { text: "2 · Your Lados Sync account" }),
+      h("p", {
+        class: "muted",
+        text: `Every synced vault uses your Lados Sync master password. Enter it to re-encrypt “${file}”.`,
+      }),
+      field("Lados Sync master password", accountPassword.element, { target: accountPassword.input }),
+      field("Key file", accountKeyFile.element, { hint: "Only if your account uses one." }),
+      syncButton,
+      accountStatus,
+    );
+
+    checkButton.addEventListener("click", () => {
+      void withBusy(checkButton, "Checking…", async () => {
+        setStatus(vaultStatus, null);
+        const password = vaultPassword.value();
+        const keyFile = vaultKeyFile.value();
+        if (!password && !keyFile) {
+          setStatus(vaultStatus, "error", "Enter the master password, or choose the key file.");
+          vaultPassword.input.focus();
+          return;
+        }
+        try {
+          store.status = await backend.syncEnableFile(path, password, keyFile);
+          toast("This vault is now synced", "success");
+          finish();
+        } catch (error) {
+          if (isDifferentMaster(error)) {
+            vaultVerified = true;
+            setStatus(vaultStatus, "ok", "Correct. Now enter your Lados Sync master password below.");
+            step2.hidden = false;
+            accountPassword.input.focus();
+          } else {
+            setStatus(vaultStatus, "error", errorMessage(error));
+          }
+        }
+      });
+    });
+
+    syncButton.addEventListener("click", () => {
+      void withBusy(syncButton, "Syncing…", async () => {
+        setStatus(accountStatus, null);
+        const password = accountPassword.value();
+        const keyFile = accountKeyFile.value();
+        if (!password && !keyFile) {
+          setStatus(accountStatus, "error", "Enter your Lados Sync master password, or choose its key file.");
+          accountPassword.input.focus();
+          return;
+        }
+        if (!vaultVerified) return;
+        try {
+          if (open) {
+            await backend.rekeyVaultFile(path, null, null, password, keyFile);
+            store.status = await backend.syncEnable();
+          } else {
+            await backend.rekeyVaultFile(path, vaultPassword.value(), vaultKeyFile.value(), password, keyFile);
+            store.status = await backend.syncEnableFile(path, password, keyFile);
+          }
+          toast("This vault was re-encrypted with your master password and is now synced", "success");
+          finish();
+        } catch (error) {
+          setStatus(accountStatus, "error", errorMessage(error));
+        }
+      });
+    });
+
+    const content = h(
+      "form",
+      { class: "modal-form", onSubmit: (event: SubmitEvent) => event.preventDefault() },
+      h(
+        "div",
+        { class: "modal-body stack" },
+        h("p", {
+          class: "muted",
+          text: `“${file}” is a local vault. To sync it, Lados re-encrypts it with your Lados Sync master password, so every synced vault shares that one password.`,
+        }),
+        step1,
+        step2,
+      ),
+      h("footer", { class: "modal-footer" }, h("button", { type: "button", class: "button", onClick: finish }, "Cancel")),
+    );
+
+    modal = openModal({
+      title: `Sync “${file}”`,
+      size: "medium",
+      content,
+      onDismiss: () => {
+        finish();
+        return true;
+      },
+    });
   });
 }
 
@@ -273,12 +427,12 @@ function signedInSections(cloud: CloudVault[], refresh: () => void): Child[] {
   // Older versions uploaded labels in clear; offer to encrypt them without changing anything else.
   const needsNames = cloud.some((vault) => !vault.nameCipher && vault.name);
 
-  /** Syncs a local copy: in place when it is the open vault, otherwise after asking its password.
+  /** Syncs a local copy: in place when it is the open vault, otherwise through the guided dialog.
    *  If the vault's master password isn't the account's, it is re-encrypted first. */
   const syncCopy = (path: string, title: string) =>
     run(async () => {
-      const rekeyed = "This vault was re-encrypted with your master password and is now synced";
-      if (openPath && path === openPath) {
+      const open = openPath !== null && path === openPath;
+      if (open) {
         try {
           store.status = await backend.syncEnable();
           toast(title === "Sync now" ? "Synced" : "This vault is now synced", "success");
@@ -286,37 +440,8 @@ function signedInSections(cloud: CloudVault[], refresh: () => void): Child[] {
         } catch (error) {
           if (!isDifferentMaster(error)) throw error;
         }
-        const master = await askPassword(
-          "Use your sync master password",
-          `Synced vaults share your sync master password. Enter it to re-encrypt “${fileNameOf(path)}”.`,
-          // The account's key file, not the open vault's: pre-filling the vault's made it easy to
-          // send the wrong credentials to the account (see the red-team report, M2).
-          null,
-        );
-        if (!master) return;
-        await backend.rekeyVaultFile(path, null, null, master.password, master.keyFile);
-        store.status = await backend.syncEnable();
-        toast(rekeyed, "success");
-        return;
       }
-      const vault = await askPassword("Sync this vault", `Enter the master password of “${fileNameOf(path)}”.`, null);
-      if (!vault) return;
-      try {
-        store.status = await backend.syncEnableFile(path, vault.password, vault.keyFile);
-        toast(title === "Sync now" ? "Synced" : "This vault is now synced", "success");
-        return;
-      } catch (error) {
-        if (!isDifferentMaster(error)) throw error;
-      }
-      const master = await askPassword(
-        "Use your sync master password",
-        `Synced vaults share your sync master password. Enter it to re-encrypt “${fileNameOf(path)}”.`,
-        null,
-      );
-      if (!master) return;
-      await backend.rekeyVaultFile(path, vault.password, vault.keyFile, master.password, master.keyFile);
-      store.status = await backend.syncEnableFile(path, master.password, master.keyFile);
-      toast(rekeyed, "success");
+      await syncVaultDialog(path, open);
     });
 
   const stopSyncing = (localVaultId: string) =>

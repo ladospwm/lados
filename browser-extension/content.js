@@ -26,6 +26,7 @@
   let debounce = null;
   let lastUrl = location.href;
   let positionRaf = 0;
+  let misses = 0;
 
   // -------------------------------------------------------------------------
   // Small DOM helpers built with DOM APIs only
@@ -221,6 +222,7 @@
     .pill .chev { opacity: .55; font-size: 10px; }
     .pill.locked { background: #2a2010; }
     .pill.offline { background: #241a1a; }
+    .pill[hidden] { display: none; }
     .panel {
       margin-top: 6px; min-width: 232px; max-width: 320px;
       background: #ffffff; color: #111418; border: 1px solid #d8dde3;
@@ -399,12 +401,28 @@
   async function refresh() {
     fields = findLoginFields(false);
     if (!fields) {
+      // A login field can vanish for a moment - an SPA re-render, a form swap, a step change. Do
+      // not remove the widget on a single miss (it used to vanish as the user reached for it):
+      // retry briefly, and only tear down if the field really stays gone.
+      misses += 1;
+      if (host && misses < 6) {
+        scheduleRefresh();
+        return;
+      }
       teardown();
+      misses = 0;
       return;
     }
+    misses = 0;
 
-    state = "loading";
-    renderPill();
+    // Only show "Checking Lados…" on the first scan. Re-fetching while the pill is already up (a
+    // URL change, the tab regaining focus) must not repaint it, or it visibly flickers.
+    const steady = state === "ready" && matches.length > 0;
+    if (!steady) {
+      // Say nothing until the app answers. A page with no saved login must not flash a
+      // "Checking Lados…" pill that then disappears - it looked like the widget was broken.
+      state = "loading";
+    }
 
     const response = await api.runtime
       .sendMessage({ type: "find", url: location.href })
@@ -421,7 +439,7 @@
       matches = [];
       state = response.state;
       renderPill();
-    } else {
+    } else if (!steady) {
       // No saved login for this page: stay out of the way.
       teardown();
     }
@@ -448,7 +466,6 @@
   }
 
   function start() {
-    ensureRoot();
     refresh();
   }
 

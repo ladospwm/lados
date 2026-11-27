@@ -51,6 +51,27 @@ and its privacy questionnaire is already covered above.)
 
 ---
 
+## Firefox (AMO) 0.4.8 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+The "Fill with Lados" prompt no longer flashes and disappears on a login page where you have no
+saved login yet. It only appears when there is something to offer.
+```
+
+**Notes to reviewer:**
+
+```
+One behaviour fix in content.js. The widget painted a "Checking..." pill before the app answered,
+and then removed it when the page turned out to have no saved login, so it flashed and vanished.
+It now renders only once the app's answer is known, and .pill[hidden] is respected.
+
+No manifest, permission or network change.
+```
+
+---
+
 ## Firefox (AMO) 0.4.7 — release notes & notes to reviewer
 
 **Release notes** (shown to users):

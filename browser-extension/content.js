@@ -222,6 +222,7 @@
     .pill .chev { opacity: .55; font-size: 10px; }
     .pill.locked { background: #2a2010; }
     .pill.offline { background: #241a1a; }
+    .pill[hidden] { display: none; }
     .panel {
       margin-top: 6px; min-width: 232px; max-width: 320px;
       background: #ffffff; color: #111418; border: 1px solid #d8dde3;
@@ -418,8 +419,9 @@
     // URL change, the tab regaining focus) must not repaint it, or it visibly flickers.
     const steady = state === "ready" && matches.length > 0;
     if (!steady) {
+      // Say nothing until the app answers. A page with no saved login must not flash a
+      // "Checking Lados…" pill that then disappears - it looked like the widget was broken.
       state = "loading";
-      renderPill();
     }
 
     const response = await api.runtime
@@ -464,7 +466,6 @@
   }
 
   function start() {
-    ensureRoot();
     refresh();
   }
 

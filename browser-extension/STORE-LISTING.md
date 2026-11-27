@@ -51,6 +51,31 @@ and its privacy questionnaire is already covered above.)
 
 ---
 
+## Firefox (AMO) 0.4.6 — release notes & notes to reviewer
+
+**Release notes** (shown to users):
+
+```
+Fixed the "Fill with Lados" widget disappearing the moment it appeared: a transient overlay over
+the login field (for example the browser's own autofill dropdown) no longer removes it.
+```
+
+**Notes to reviewer:**
+
+```
+One behaviour fix in content.js only.
+
+Login-field detection (which decides whether to show the widget) used the same strict visibility
+check as filling, including a hit-test that rejects a field covered by another element (the
+hp-overlay honeypot). Any transient overlay over the field therefore made the widget tear itself
+down. Detection now uses a structural check (size, opacity, ancestors, clipping), and only the
+fill path still requires the field to be uncovered, so the honeypot protection is unchanged.
+
+No manifest, permission or network change.
+```
+
+---
+
 ## Firefox (AMO) 0.4.5 — release notes & notes to reviewer
 
 **Release notes** (shown to users):
